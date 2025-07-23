@@ -72,6 +72,7 @@ const base = defineConfig({
                 parser: {
                   syntax: 'typescript',
                   tsx: true,
+                  decorators: true,
                 },
                 transform: {
                   react: {
@@ -81,6 +82,8 @@ const base = defineConfig({
                     development: !isProd,
                     refresh: !isProd,
                   },
+                  decoratorMetadata: true,
+                  legacyDecorator: true,
                 },
               },
               env: polyfill,

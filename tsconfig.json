@@ -18,6 +18,8 @@
     "moduleResolution": "Bundler",
     "allowImportingTsExtensions": true,
     "forceConsistentCasingInFileNames": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
 
     /* type checking */
     "strict": true,
@@ -33,6 +35,6 @@
         }
       }
     ]
-  }
-  // "include": ["src", "demos", "build"]
+  },
+  "include": ["src", "demos"]
 }

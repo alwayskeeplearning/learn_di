@@ -3,15 +3,17 @@ import 'reflect-metadata';
 const Lifecycle = {
   SINGLETON: 'SINGLETON',
   TRANSIENT: 'TRANSIENT',
-} as const;
+};
 
 type TLifecycle = (typeof Lifecycle)[keyof typeof Lifecycle];
 
-type TServiceRegistration = {
+type Constructor<T> = new (...args: any[]) => T;
+
+type TServiceRegistration<T = any> = {
   token: symbol | string;
-  type: any;
+  type: Constructor<T>;
   lifecycle: TLifecycle;
-  instance?: any;
+  instance?: T;
 };
 
 class DIContainer {
@@ -27,7 +29,7 @@ class DIContainer {
     return DIContainer.instance;
   }
 
-  public register(token: symbol | string, type: any, lifecycle: TLifecycle = Lifecycle.SINGLETON): void {
+  public register<T>(token: symbol | string, type: Constructor<T>, lifecycle: TLifecycle = Lifecycle.SINGLETON): void {
     this.services.set(token, { token, type, lifecycle });
     console.log(`服务注册: ${String(token)}，生命周期: ${lifecycle}`);
   }
@@ -42,9 +44,9 @@ class DIContainer {
       if (!registration.instance) {
         registration.instance = new registration.type();
       }
-      return registration.instance as T;
+      return registration.instance;
     }
-    return new registration.type() as T;
+    return new registration.type();
   }
 }
 

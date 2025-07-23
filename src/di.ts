@@ -35,7 +35,7 @@ class DIContainer {
   }
 
   resolve<T>(token: symbol | string): T {
-    const registration = this.services.get(token);
+    const registration = this.services.get(token) as TServiceRegistration<T>;
     if (!registration) {
       throw new Error(`Service ${String(token)} not registered`);
     }

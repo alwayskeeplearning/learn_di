@@ -1,10 +1,9 @@
 import type { TLifecycle } from '../di';
 import { DIContainer, Lifecycle } from '../di';
-import 'reflect-metadata';
 
-const Service = (token: symbol | string = Symbol(), lifecycle: TLifecycle = Lifecycle.SINGLETON) => {
+const Service = (token?: symbol | string, lifecycle: TLifecycle = Lifecycle.SINGLETON) => {
   return <T extends { new (...args: any[]): object }>(target: T) => {
-    let serviceToken: symbol | string = Symbol(target.name);
+    let serviceToken: any = target;
     if (typeof token === 'string' && token.trim() !== '') {
       serviceToken = token;
     }
@@ -16,9 +15,6 @@ const Service = (token: symbol | string = Symbol(), lifecycle: TLifecycle = Life
     container.register(serviceToken, target, lifecycle);
 
     Reflect.defineMetadata('di:token', serviceToken, target);
-
-    const params = Reflect.getMetadata('design:paramtypes', target);
-    console.log(params);
 
     return target;
   };

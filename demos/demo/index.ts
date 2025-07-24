@@ -1,35 +1,33 @@
-import { DIContainer, Lifecycle } from '@/di';
+import 'reflect-metadata'; // 全局导入一次
+import { DIContainer } from '@/di';
+import { Inject } from '@/decorators/inject';
+import { Service } from '@/decorators/service';
 
-class TestService {
-  constructor() {}
-  test(): void {
-    console.log('test');
+@Service()
+class Logger {
+  log(message: string) {
+    console.log(`[LOG]: ${message}`);
+  }
+}
+@Service()
+class DatabaseService {
+  constructor(@Inject() private logger: Logger) {}
+
+  query(sql: string) {
+    this.logger.log(`Executing query: ${sql}`);
+    return 'Query result';
+  }
+}
+@Service()
+class UserService {
+  @Inject() private db!: DatabaseService;
+
+  getUser(id: number) {
+    return this.db.query(`SELECT * FROM users WHERE id = ${id}`);
   }
 }
 
-const run = () => {
-  const container = DIContainer.getInstance();
+const container = DIContainer.getInstance();
 
-  //注册
-  const singletonToken = Symbol('SingletonTest');
-  container.register(singletonToken, TestService, Lifecycle.SINGLETON);
-  const transientToken = Symbol('TransientTest');
-  container.register(transientToken, TestService, Lifecycle.TRANSIENT);
-
-  //解析
-  const single1 = container.resolve(singletonToken);
-  const single2 = container.resolve(singletonToken);
-  const transient1 = container.resolve(transientToken);
-  const transient2 = container.resolve(transientToken);
-  console.log(single1 === single2);
-  console.log(transient1 === transient2);
-
-  //测试未注册
-  try {
-    container.resolve<TestService>(Symbol('TestService2'));
-  } catch (error) {
-    console.log(error);
-  }
-};
-
-run();
+const userService = container.resolve<UserService>(UserService);
+userService.getUser(1);

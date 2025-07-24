@@ -47,10 +47,19 @@ class DIContainer {
     }
 
     // 准备构造函数参数
+    const paramTypes = Reflect.getMetadata('design:paramtypes', registration.type) || [];
     const injectMetadata: ConstructorInjectMetadata[] = Reflect.getMetadata(CONSTRUCTOR_INJECT_METADATA_KEY, registration.type) || [];
 
     // 构建参数数组
-    const params: any[] = [];
+    const params = paramTypes.map((defaultType: any, index: number) => {
+      const metadata = injectMetadata.find(metadata => metadata.index === index);
+      const resolveType = metadata ? metadata.type : defaultType;
+      if (resolveType === undefined) {
+        throw new Error(`cannot resolve parameter at index ${index} of ${registration.type.name}`);
+      }
+      return this.resolve(resolveType);
+    });
+
     injectMetadata.forEach(({ index, type }) => {
       params[index] = this.resolve(type);
     });

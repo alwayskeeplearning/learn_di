@@ -17,12 +17,12 @@ export interface ConstructorInjectMetadata {
  * @Inject() 属性装饰器。
  * 它的作用是标记一个属性，以便DI容器在实例化时自动注入依赖。
  */
-export function Inject() {
+export function Inject(token?: symbol | string) {
   return function (target: any, propertyKey?: string | symbol, parameterIndex?: number) {
     if (propertyKey !== undefined) {
       // 对于属性装饰器 target是类的原型，propertyKey是属性名
       // "design:type" 是 TypeScript 在启用 emitDecoratorMetadata 后自动添加的元数据键。
-      const type = Reflect.getMetadata('design:type', target, propertyKey);
+      const type = token ?? Reflect.getMetadata('design:type', target, propertyKey);
       // target.constructor 指向类的构造函数。我们把元数据附加到类本身，而不是实例上。
       const existingMetadata: InjectMetadata[] = Reflect.getMetadata(INJECT_METADATA_KEY, target.constructor) || [];
       existingMetadata.push({ propertyKey, type });
@@ -31,7 +31,7 @@ export function Inject() {
       // 对于参数装饰器（尤其是构造函数参数装饰器） target是类的构造函数，parameterIndex是参数索引
       // "design:paramtypes" 是 TypeScript 在启用 emitDecoratorMetadata 后自动添加的元数据键。
       const paramTypes = Reflect.getMetadata('design:paramtypes', target) || [];
-      const type = paramTypes[parameterIndex];
+      const type = token ?? paramTypes[parameterIndex];
       const existingMetadata: ConstructorInjectMetadata[] = Reflect.getMetadata(CONSTRUCTOR_INJECT_METADATA_KEY, target) || [];
       existingMetadata.push({ index: parameterIndex, type });
       Reflect.defineMetadata(CONSTRUCTOR_INJECT_METADATA_KEY, existingMetadata, target);

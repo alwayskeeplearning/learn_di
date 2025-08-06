@@ -3,43 +3,73 @@ import { DIContainer, Lifecycle } from '@/di';
 import { Service } from '@/decorators/service';
 import { Inject } from '@/decorators/inject';
 
-// 假设已有这些服务（从之前部分复制或添加）
-@Service()
+// 定义一个简单的日志服务（来自步骤4.2.1）
+@Service('LoggerService', Lifecycle.SINGLETON)
 class LoggerService {
   log(message: string) {
-    console.log(`Log: ${message}`);
+    console.log(`[LOG]: ${message}`);
   }
 }
 
-@Service()
-class UserService {
-  constructor(private logger: LoggerService) {} // 无 @Inject，自动注入
-
-  getUser() {
-    this.logger.log('Fetching user');
-    return { id: 1, name: 'Test User' };
+@Service('TaskService', Lifecycle.SINGLETON)
+class TaskService {
+  performTask(@Inject('LoggerService') logger: LoggerService, taskName: string) {
+    logger.log(`[TaskService]: Performing task: ${taskName}`);
+    return `Task ${taskName} completed`;
   }
 }
 
-// 测试
+// // 定义一个配置服务（来自步骤4.2.2）
+// @Service() // 不指定token，使用类本身作为token
+// class ConfigService {
+//   getConfig(key: string) {
+//     return `Config value for ${key}`;
+//   }
+// }
+
+// // 定义一个Transient日志服务，每次解析新建实例
+// @Service('TransientLogger', Lifecycle.TRANSIENT)
+// class TransientLogger {
+//   private id = Math.random(); // 随机ID，用于区分实例
+
+//   log(message: string) {
+//     console.log(`[Transient LOG ${this.id}]: ${message}`);
+//   }
+// }
+
+// // 定义一个用户服务，使用属性注入多个依赖，包括Transient的
+// @Service('UserService', Lifecycle.SINGLETON) // UserService本身是Singleton
+// class UserService {
+//   @Inject('LoggerService')
+//   logger!: LoggerService; // Singleton
+
+//   @Inject()
+//   config!: ConfigService; // Singleton（默认）
+
+//   @Inject('TransientLogger')
+//   transientLogger!: TransientLogger; // Transient，每次UserService解析时新建
+
+//   getUser(id: number) {
+//     this.logger.log(`Fetching user with id: ${id}`);
+//     const configValue = this.config.getConfig('userEndpoint');
+//     this.logger.log(`Using config: ${configValue}`);
+//     this.transientLogger.log(`Transient log for user ${id}`);
+//     return { id, name: 'Test User' };
+//   }
+// }
+
 const container = DIContainer.getInstance();
-const userService = container.resolve<UserService>(UserService);
-console.log(userService.getUser()); // 应输出 Log: Fetching user 和用户对象
+// // 第一次解析
+// const userService1 = container.resolve<UserService>('UserService');
+// userService1.getUser(1); // 使用一个TransientLogger实例
 
-// 自定义 token
-const ILoggerToken = Symbol('ILogger');
-// 注册时用自定义 token
-container.register(ILoggerToken, LoggerService, Lifecycle.SINGLETON);
-@Service()
-class UserService1 {
-  constructor(@Inject(ILoggerToken) private logger: LoggerService) {} // 这里用 @Inject(token) 指定自定义 token
+// // 第二次解析（由于UserService是Singleton，返回同一实例，但Transient属性已在首次注入）
+// const userService2 = container.resolve<UserService>('UserService');
+// userService2.getUser(2); // 使用相同的TransientLogger实例（因为属性注入只在Singleton创建时执行一次）
 
-  getUser() {
-    this.logger.log('Fetching user with custom token');
-    return { id: 1, name: 'Test User' };
-  }
-}
+// console.log(userService1 === userService2); // true
+// console.log(userService1.transientLogger === userService2.transientLogger); // false
 
-// 测试
-const userService1 = container.resolve<UserService1>(UserService1);
-console.log(userService1.getUser()); // 输出: Console Log: Fetching user with custom token
+const taskService = container.resolve<TaskService>('TaskService');
+const result = container.invoke(taskService, 'performTask', ['MyTask']);
+console.log(result);

@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { INJECT_METADATA_KEY, InjectMetadata } from './decorators/inject';
+import { INJECT_METADATA_KEY, InjectMetadata, METHOD_INJECT_METADATA_KEY, MethodInjectMetadata } from './decorators/inject';
 import { CONSTRUCTOR_INJECT_METADATA_KEY, ConstructorInjectMetadata } from './decorators/inject';
 
 const Lifecycle = {
@@ -84,6 +84,35 @@ class DIContainer {
       });
       return instance;
     }
+  }
+
+  invoke(target: any, methodName: string, additionalArgs: any[]): any {
+    const targetClass = target.constructor || target;
+    const injectMetadata: MethodInjectMetadata[] = Reflect.getMetadata(METHOD_INJECT_METADATA_KEY, targetClass) || [];
+    console.log('injectMetadata', injectMetadata);
+    const paramTypes = Reflect.getMetadata('design:paramtypes', target, methodName) || [];
+    console.log('paramTypes', paramTypes);
+    const methodMetadata = injectMetadata.filter(metadata => metadata.methodName === methodName);
+    console.log('methodMetadata', methodMetadata);
+    const nonInjectedIndexes: number[] = [];
+    paramTypes.forEach((_: any, index: number) => {
+      if (!methodMetadata.some(m => m.index === index)) {
+        nonInjectedIndexes.push(index);
+      }
+    });
+    console.log('nonInjectedIndexes', nonInjectedIndexes);
+    const params = paramTypes.map((defaultType: any, index: number) => {
+      const metadata = methodMetadata.find(m => m.index === index);
+      if (metadata) {
+        return this.resolve(metadata.type);
+      }
+      const argIndex = nonInjectedIndexes.indexOf(index);
+      return additionalArgs[argIndex] ?? undefined;
+    });
+
+    console.log('params', params);
+    const method = target[methodName];
+    return method.apply(target, params);
   }
 }
 

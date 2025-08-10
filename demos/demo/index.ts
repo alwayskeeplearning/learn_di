@@ -1,42 +1,43 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import 'reflect-metadata'; // 全局导入一次
-import { DIContainer, Lifecycle } from '@/di';
+import { DIContainer } from '@/di';
+import { Lifecycle } from '@/di';
 import { Service } from '@/decorators/service';
+import { Inject } from '@/decorators/inject';
 
-// 定义一个简单的日志服务（来自步骤4.2.1）
-@Service('Logger', Lifecycle.SINGLETON)
-class Logger {
-  log(message: string) {
-    console.log(`[LOG]: ${message}`);
+const container = DIContainer.getInstance();
+container.register('B_FACTORY', () => () => container.resolve('B'), Lifecycle.SINGLETON);
+// // ===== 循环依赖验证 =====
+
+// 使用字符串 token，避免前向引用的元数据问题
+@Service('A')
+class AService {
+  constructor(@Inject('B_FACTORY') private getB: () => any) {}
+
+  work() {
+    const b = this.getB(); // 这里调用函数，安全获取 B 实例（不会环）
+    b.ping(); // 现在可以正常使用 B 的方法
   }
 }
-// src/index.ts (追加到文件末尾或单独测试)
-// 假设已有 import { DIContainer, Lifecycle } from './di';
-// 假设已有 class Logger { log() { console.log('Logging...'); } }
 
-// 测试自定义工厂
-const container = DIContainer.getInstance();
+@Service('B')
+class BService {
+  constructor(@Inject('A') private a: any) {}
 
-// 注册一个工厂
-container.register(
-  'CustomService',
-  () => {
-    const logger = container.resolve('Logger'); // 假设Logger已注册
-    return { message: 'Created by factory', logger };
-  },
-  Lifecycle.TRANSIENT,
-);
+  ping() {
+    console.log('B pinged, with A:', this.a); // 演示 B 能访问 A
+  }
+}
 
-// 解析并测试
-const customInstance1 = container.resolve('CustomService') as any;
-console.log(customInstance1.message); // 输出: Created by factory
-customInstance1.logger.log('test log'); // 输出: Logging...
+// 测试打破循环
+try {
+  const a = container.resolve<any>('A');
+  console.log('A resolved successfully:', a); // 成功
 
-const customInstance2 = container.resolve('CustomService');
-console.log(customInstance1 === customInstance2); // false (Transient)
+  a.work(); // 调用方法：获取 B 并 ping（输出 'B pinged, with A: [AService 实例]'）
 
-// 如果改为Singleton，测试缓存
-container.register('CustomSingleton', () => ({ message: 'Singleton factory' }), Lifecycle.SINGLETON);
-const singleton1 = container.resolve('CustomSingleton');
-const singleton2 = container.resolve('CustomSingleton');
-console.log(singleton1 === singleton2); // true
+  const b = container.resolve<any>('B'); // B 也能解析
+  console.log('B resolved successfully:', b);
+} catch (e) {
+  console.log('Cycle error:', (e as Error).message); // 不会触发
+}

@@ -45,14 +45,10 @@ export function Inject(token?: symbol | string) {
     } else if (propertyKey !== undefined && parameterIndex !== undefined) {
       // 对于方法装饰器 target是类的原型，propertyKey是方法名，parameterIndex是参数索引
       const paramTypes = Reflect.getMetadata('design:paramtypes', target, propertyKey) || [];
-      console.log('paramTypes', paramTypes);
       const type = token ?? paramTypes[parameterIndex];
-      console.log('type', type);
       const existingMetadata: MethodInjectMetadata[] = Reflect.getMetadata(METHOD_INJECT_METADATA_KEY, target.constructor) || [];
       existingMetadata.push({ methodName: propertyKey, index: parameterIndex, type });
-      console.log('existingMetadata', existingMetadata);
       Reflect.defineMetadata(METHOD_INJECT_METADATA_KEY, existingMetadata, target.constructor);
-      console.log('test get', Reflect.getMetadata(METHOD_INJECT_METADATA_KEY, target.constructor));
     }
   };
 }

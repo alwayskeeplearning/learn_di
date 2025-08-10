@@ -48,8 +48,13 @@ class DIContainer {
     console.log(`服务注册: ${token.name || String(token)}，生命周期: ${lifecycle}`);
   }
 
-  // 修改 resolve 的 token 为 any
+  // 修改 resolve，委托到内部方法
   resolve<T>(token: any): T {
+    return this.resolveInternal<T>(token, new Set<any>());
+  }
+
+  // 新增：带解析栈的内部解析
+  private resolveInternal<T>(token: any, stack: Set<any>): T {
     const registration = this.services.get(token) as TServiceRegistration<T>;
     if (!registration) {
       throw new Error(`Service ${token.name || String(token)} not registered`);
@@ -57,51 +62,62 @@ class DIContainer {
     if (registration.lifecycle === Lifecycle.SINGLETON && registration.instance) {
       return registration.instance;
     }
-    let instance: T;
 
-    if (registration.factory) {
-      instance = registration.factory();
-    } else if (registration.type) {
-      // 准备构造函数参数
-      const paramTypes = Reflect.getMetadata('design:paramtypes', registration.type) || [];
-      const injectMetadata: ConstructorInjectMetadata[] = Reflect.getMetadata(CONSTRUCTOR_INJECT_METADATA_KEY, registration.type) || [];
-      // 构建参数数组
-      const params = paramTypes.map((defaultType: any, index: number) => {
-        const metadata = injectMetadata.find(metadata => metadata.index === index);
-        const resolveType = metadata ? metadata.type : defaultType;
-        if (resolveType === undefined) {
-          throw new Error(`cannot resolve parameter at index ${index} of ${registration.type?.name}`);
-        }
-        return this.resolve(resolveType);
-      });
+    // 循环依赖检测
+    if (stack.has(token)) {
+      const chain = [...stack, token].map(t => t?.name ?? String(t)).join(' -> ');
+      throw new Error(`Circular dependency detected: ${chain}`);
+    }
 
-      injectMetadata.forEach(({ index, type }) => {
-        params[index] = this.resolve(type);
-      });
-      instance = new registration.type(...params);
-      const propInjectMetadata: InjectMetadata[] = Reflect.getMetadata(INJECT_METADATA_KEY, registration.type) || [];
-      propInjectMetadata.forEach(({ propertyKey, type }) => {
-        (instance as any)[propertyKey] = this.resolve(type);
-      });
+    stack.add(token);
+    try {
+      let instance: T;
 
+      if (registration.factory) {
+        instance = registration.factory();
+      } else if (registration.type) {
+        // 准备构造函数参数
+        const paramTypes = Reflect.getMetadata('design:paramtypes', registration.type) || [];
+        const injectMetadata: ConstructorInjectMetadata[] = Reflect.getMetadata(CONSTRUCTOR_INJECT_METADATA_KEY, registration.type) || [];
+
+        // 构建参数数组（用 resolveInternal 传递栈）
+        const params = paramTypes.map((defaultType: any, index: number) => {
+          const metadata = injectMetadata.find(m => m.index === index);
+          const resolveType = metadata ? metadata.type : defaultType;
+          if (resolveType === undefined) {
+            throw new Error(`cannot resolve parameter at index ${index} of ${registration.type?.name}`);
+          }
+          return this.resolveInternal(resolveType, stack);
+        });
+        // injectMetadata.forEach(({ index, type }) => {
+        //   params[index] = this.resolveInternal(type, stack);
+        // });
+
+        instance = new registration.type(...params);
+
+        // 属性注入（同样使用 resolveInternal）
+        const propInjectMetadata: InjectMetadata[] = Reflect.getMetadata(INJECT_METADATA_KEY, registration.type) || [];
+        propInjectMetadata.forEach(({ propertyKey, type }) => {
+          (instance as any)[propertyKey] = this.resolveInternal(type, stack);
+        });
+      } else {
+        throw new Error(`No type or a factory provided for service ${token.name || String(token)}`);
+      }
+
+      if (registration.lifecycle === Lifecycle.SINGLETON) {
+        registration.instance = instance;
+      }
       return instance;
-    } else {
-      throw new Error(`No type or a factory provided for service ${token.name || String(token)}`);
+    } finally {
+      stack.delete(token);
     }
-    if (registration.lifecycle === Lifecycle.SINGLETON) {
-      registration.instance = instance;
-    }
-    return instance;
   }
 
   invoke(target: any, methodName: string, additionalArgs: any[]): any {
     const targetClass = target.constructor || target;
     const injectMetadata: MethodInjectMetadata[] = Reflect.getMetadata(METHOD_INJECT_METADATA_KEY, targetClass) || [];
-    console.log('injectMetadata', injectMetadata);
     const paramTypes = Reflect.getMetadata('design:paramtypes', target, methodName) || [];
-    console.log('paramTypes', paramTypes);
     const methodMetadata = injectMetadata.filter(metadata => metadata.methodName === methodName);
-    console.log('methodMetadata', methodMetadata);
     const nonInjectedIndexes: number[] = [];
     paramTypes.forEach((_: any, index: number) => {
       if (!methodMetadata.some(m => m.index === index)) {
